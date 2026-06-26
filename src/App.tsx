@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { safeLocalStorage, safeSessionStorage } from './lib/safeStorage';
-import { getLinkedSheetConfig, getAccessToken, appendOrderToSheet, pullProductsFromSheet, getLinkedSheetConfigFromFirestore, getProductsFromFirestore, saveLinkedSheetConfig } from './lib/googleSheets';
+import { getLinkedSheetConfig, getAccessToken, appendOrderToSheet, pullProductsFromSheet, getLinkedSheetConfigFromFirestore, getProductsFromFirestore, saveLinkedSheetConfig, saveProductsToFirestore } from './lib/googleSheets';
 import SheetsManager from './components/SheetsManager';
 import {
   isSupabaseConfigured,
@@ -197,28 +197,44 @@ export default function App() {
           console.log('Successfully loaded shared Google Sheet config from Firestore:', remoteConfig.spreadsheetId);
         }
 
+        // 2. Try to pull fresh products from Google Sheet if we are connected
+        const config = remoteConfig || getLinkedSheetConfig();
+        if (config && config.spreadsheetId) {
+          let token = safeLocalStorage.getItem('phonetwork_manual_access_token') || safeLocalStorage.getItem('phonetwork_google_access_token');
+          if (!token) {
+            token = await getAccessToken();
+          }
+
+          if (token) {
+            try {
+              const pulled = await pullProductsFromSheet(config.spreadsheetId, token);
+              if (pulled && pulled.length > 0) {
+                setProducts(pulled);
+                safeLocalStorage.setItem('phonetwork_products', JSON.stringify(pulled));
+                await saveProductsToFirestore(pulled);
+                console.log(`Successfully pulled fresh products from Google Sheets on load: ${pulled.length} items.`);
+                return; // Done
+              }
+            } catch (sheetErr) {
+              console.warn('Failed to pull fresh products from Google Sheet on load, will fall back:', sheetErr);
+            }
+          }
+        }
+
+        // 3. Fallback: If sheet pull failed or not connected, use the cached Firestore products
         if (remoteProducts && remoteProducts.length > 0) {
           setProducts(remoteProducts);
           safeLocalStorage.setItem('phonetwork_products', JSON.stringify(remoteProducts));
-          console.log(`Successfully loaded ${remoteProducts.length} shared products from Firestore.`);
-          return; // No need to auto-fetch again from API since we got the synced products!
+          console.log(`Successfully loaded ${remoteProducts.length} cached products from Firestore.`);
+          return;
         }
 
-        // 2. Fallback: If Firestore didn't have products but we have a config, try to auto-fetch
-        const config = remoteConfig || getLinkedSheetConfig();
-        if (!config || !config.spreadsheetId) return;
-
-        let token = safeLocalStorage.getItem('phonetwork_manual_access_token');
-        if (!token) {
-          token = await getAccessToken();
-        }
-
-        if (token) {
-          const pulled = await pullProductsFromSheet(config.spreadsheetId, token);
-          if (pulled && pulled.length > 0) {
-            setProducts(pulled);
-            safeLocalStorage.setItem('phonetwork_products', JSON.stringify(pulled));
-            console.log(`Auto-synced ${pulled.length} products from Google Sheets on load (fallback).`);
+        // 4. Double Fallback: check local storage
+        const localSaved = safeLocalStorage.getItem('phonetwork_products');
+        if (localSaved) {
+          const parsed = JSON.parse(localSaved);
+          if (parsed && parsed.length > 0) {
+            setProducts(parsed);
           }
         }
       } catch (err) {

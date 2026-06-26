@@ -20,9 +20,9 @@ let cachedAccessToken: string | null = null;
 
 // Initialize cachedAccessToken from localStorage if present
 try {
-  cachedAccessToken = safeLocalStorage.getItem('phonetwork_manual_access_token');
+  cachedAccessToken = safeLocalStorage.getItem('phonetwork_manual_access_token') || safeLocalStorage.getItem('phonetwork_google_access_token');
 } catch (e) {
-  console.warn('Failed to load manual access token', e);
+  console.warn('Failed to load access token', e);
 }
 
 export const setManualAccessToken = (token: string | null) => {
@@ -81,7 +81,11 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
-    // Persist login state briefly in memory, if refreshed we will trigger popup again when they want to action.
+    try {
+      safeLocalStorage.setItem('phonetwork_google_access_token', credential.accessToken);
+    } catch (e) {
+      console.warn('Failed to save google access token', e);
+    }
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Google Sign-In Error:', error);
@@ -98,6 +102,11 @@ export const getAccessToken = async (): Promise<string | null> => {
 export const googleSignOut = async () => {
   await auth.signOut();
   cachedAccessToken = null;
+  try {
+    safeLocalStorage.removeItem('phonetwork_google_access_token');
+  } catch (e) {
+    console.warn('Failed to remove google access token', e);
+  }
 };
 
 // ==========================================
