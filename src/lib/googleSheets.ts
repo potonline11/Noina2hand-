@@ -150,17 +150,17 @@ export const extractSpreadsheetId = (urlOrId: string): string => {
  * Check if sheet exists and can be accessed
  */
 export const fetchSpreadsheetMetadata = async (spreadsheetId: string, token: string): Promise<any> => {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
-  const response = await fetch(url, {
+  const response = await fetch('/api/sheets/metadata', {
+    method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
-    }
+    },
+    body: JSON.stringify({ spreadsheetId, accessToken: token })
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || `ไม่สามารถเข้าถึง Google Sheet ดึงข้อมูลไม่สำเร็จ (${response.status})`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `ไม่สามารถเข้าถึง Google Sheet ดึงข้อมูลไม่สำเร็จ (${response.status})`);
   }
 
   return response.json();
@@ -170,92 +170,17 @@ export const fetchSpreadsheetMetadata = async (spreadsheetId: string, token: str
  * Initialize / Create Products and Orders sheets if they don't exist
  */
 export const initializeSpreadsheetStructure = async (spreadsheetId: string, token: string, defaultProducts: Product[]): Promise<void> => {
-  // First, verify current sheets in spreadsheet
-  const meta = await fetchSpreadsheetMetadata(spreadsheetId, token);
-  const sheets = meta.sheets || [];
-  const existingTitles = sheets.map((s: any) => s.properties.title);
-
-  const requests: any[] = [];
-
-  // Add "Products" sheet if missing
-  if (!existingTitles.includes('Products')) {
-    requests.push({
-      addSheet: {
-        properties: {
-          title: 'Products',
-          gridProperties: { rowCount: 100, columnCount: 10 }
-        }
-      }
-    });
-  }
-
-  // Add "Orders" sheet if missing
-  if (!existingTitles.includes('Orders')) {
-    requests.push({
-      addSheet: {
-        properties: {
-          title: 'Orders',
-          gridProperties: { rowCount: 1000, columnCount: 15 }
-        }
-      }
-    });
-  }
-
-  // Execute sheet creation
-  if (requests.length > 0) {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ requests })
-    });
-    if (!res.ok) {
-      throw new Error('ไม่สามารถเพิ่มแท็บแผ่นงาน Products / Orders ใหม่ใน Google Sheet ได้');
-    }
-  }
-
-  // Populate headers and standard data
-  // 1. Products Headers and data
-  const productsHeaders = [['ID', 'ชื่อสินค้า (Name)', 'แบรนด์ (Brand)', 'ราคา (Price)', 'คะแนน BV (BV)', 'ไอคอนภาพ (Image)', 'สีการ์ด (Color)']];
-  const productsRows = defaultProducts.map(p => [
-    p.id,
-    p.name,
-    p.brand,
-    p.price,
-    p.bv,
-    p.image || '📱',
-    p.color || 'from-slate-700 to-slate-900'
-  ]);
-
-  const updateValuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`;
-  const dataUpdates = [
-    {
-      range: 'Products!A1:G100',
-      values: [...productsHeaders, ...productsRows]
-    },
-    {
-      range: 'Orders!A1:J1',
-      values: [['Order ID', 'วันเวลา (Timestamp)', 'รหัสลูกค้า (Member ID)', 'ชื่อลูกค้า (Customer Name)', 'สินค้าที่สั่ง (Product)', 'จำนวนที่สั่ง (Quantity)', 'ราคาต่อชิ้น (Price)', 'ราคารวม (Total Price)', 'คะแนน BV รวม (Total BV)', 'ผู้แนะนำ / สปอนเซอร์ (Sponsor)']]
-    }
-  ];
-
-  const updateRes = await fetch(updateValuesUrl, {
+  const response = await fetch('/api/sheets/init', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      valueInputOption: 'USER_ENTERED',
-      data: dataUpdates
-    })
+    body: JSON.stringify({ spreadsheetId, accessToken: token, defaultProducts })
   });
 
-  if (!updateRes.ok) {
-    throw new Error('ไม่สามารถตั้งค่าคอลัมน์มาตรฐานให้กับชีตได้');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'ไม่สามารถตั้งค่าโครงสร้างชีตได้');
   }
 };
 
@@ -263,47 +188,21 @@ export const initializeSpreadsheetStructure = async (spreadsheetId: string, toke
  * Pull products list from Products sheet tab
  */
 export const pullProductsFromSheet = async (spreadsheetId: string, token: string): Promise<Product[]> => {
-  const range = 'Products!A2:G200'; // Pull up to 200 products
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
-  
-  const response = await fetch(url, {
+  const response = await fetch('/api/sheets/pull-products', {
+    method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
-    }
+    },
+    body: JSON.stringify({ spreadsheetId, accessToken: token })
   });
 
   if (!response.ok) {
-    if (response.status === 400) {
-      throw new Error('ไม่พบแผ่นงานชื่อ "Products" ใน Google Sheet นี้ กรุณารันปุ่มสร้างตารางมาตรฐานก่อน');
-    }
-    throw new Error('ไม่สามารถดึงข้อมูลสินค้าจากช่องตาราง Products ได้');
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'ไม่สามารถดึงข้อมูลสินค้าจากช่องตาราง Products ได้');
   }
 
   const data = await response.json();
-  const rows = data.values || [];
-
-  const parsedProducts: Product[] = rows.map((row: any, index: number) => {
-    const id = row[0] || `p-sheet-${index + 1}`;
-    const name = row[1] || 'สินค้าไม่มีชื่อ';
-    const brand = row[2] || '';
-    const price = Math.max(0, parseInt(row[3]) || 0);
-    const bv = Math.max(0, parseInt(row[4]) || Math.round(price * 0.01));
-    const image = row[5] || '📦';
-    const color = row[6] || 'from-slate-700 to-slate-900';
-
-    return {
-      id,
-      name,
-      brand,
-      price,
-      bv,
-      image,
-      color
-    };
-  });
-
-  return parsedProducts;
+  return data.products || [];
 };
 
 /**
@@ -317,39 +216,17 @@ export const appendOrderToSheet = async (
   product: Product, 
   quantity: number
 ): Promise<void> => {
-  const range = 'Orders!A:J';
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
-
-  const totalAmount = product.price * quantity;
-  const totalBV = product.bv * quantity;
-  const sponsorName = seller.sponsorId || 'ไม่มีผู้แนะนำ';
-
-  const row = [
-    tx.id,
-    tx.timestamp,
-    seller.id,
-    seller.name,
-    product.name,
-    quantity,
-    product.price,
-    totalAmount,
-    totalBV,
-    sponsorName
-  ];
-
-  const response = await fetch(url, {
+  const response = await fetch('/api/sheets/append-order', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      values: [row]
-    })
+    body: JSON.stringify({ spreadsheetId, accessToken: token, tx, seller, product, quantity })
   });
 
   if (!response.ok) {
-    console.error('Failed to append order to Google Sheets:', await response.text());
+    const errorData = await response.json().catch(() => ({}));
+    console.error('Failed to append order to Google Sheets via backend:', errorData.error);
   }
 };
 
