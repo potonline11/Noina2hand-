@@ -1,0 +1,6 @@
+{
+  "name": "Phonetwork",
+  "description": "ระบบจัดการสมาชิกและสรุปยอดขายเครือข่ายธุรกิจมือถือ 5 ระดับ (Normal, Bronze, Silver, Gold, Diamond) พร้อมรายงานแดชบอร์ดล้ำสมัยแบบเรียลไทม์",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

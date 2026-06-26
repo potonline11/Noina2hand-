@@ -1,0 +1,35 @@
+{
+  "entities": {
+    "SheetConfig": {
+      "title": "SheetConfig",
+      "description": "Google Sheet configuration for synchronization",
+      "type": "object",
+      "properties": {
+        "spreadsheetId": { "type": "string" },
+        "spreadsheetUrl": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["spreadsheetId", "spreadsheetUrl"]
+    },
+    "ProductsList": {
+      "title": "ProductsList",
+      "description": "Synced list of products from Google Sheet",
+      "type": "object",
+      "properties": {
+        "list": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["list"]
+    }
+  },
+  "firestore": {
+    "/config/sheets": {
+      "schema": "SheetConfig",
+      "description": "Global Google Sheets configuration"
+    },
+    "/config/products": {
+      "schema": "ProductsList",
+      "description": "Global cached products list"
+    }
+  }
+}
