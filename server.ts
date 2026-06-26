@@ -163,6 +163,8 @@ async function startServer() {
     try {
       const range = 'Products!A2:G200';
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+      
+      console.log(`[PULL PRODUCTS] Fetching sheets data for ID: ${spreadsheetId}`);
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -171,27 +173,45 @@ async function startServer() {
       });
 
       if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[PULL PRODUCTS] Google Sheets API error ${response.status}:`, errText);
+        
         if (response.status === 400) {
           return res.status(400).json({ error: 'ไม่พบแผ่นงานชื่อ "Products" ใน Google Sheet นี้ กรุณารันปุ่มสร้างตารางมาตรฐานก่อน' });
         }
-        return res.status(response.status).json({ error: 'ไม่สามารถดึงข้อมูลสินค้าจากช่องตาราง Products ได้' });
+        return res.status(response.status).json({ error: `ไม่สามารถดึงข้อมูลสินค้าจากช่องตาราง Products ได้ (${response.status})` });
       }
 
       const data = await response.json();
       const rows = data.values || [];
+      console.log(`[PULL PRODUCTS] Successfully retrieved ${rows.length} raw rows from sheet.`);
 
-      const parsedProducts = rows.map((row: any, index: number) => {
-        const id = row[0] || `p-sheet-${index + 1}`;
-        const name = row[1] || 'สินค้าไม่มีชื่อ';
-        const brand = row[2] || '';
-        const price = Math.max(0, parseInt(row[3]) || 0);
-        const bv = Math.max(0, parseInt(row[4]) || Math.round(price * 0.01));
-        const image = row[5] || '📦';
-        const color = row[6] || 'from-slate-700 to-slate-900';
+      const parsedProducts = rows
+        .filter((row: any) => {
+          // Filter out rows that are entirely empty or have no ID and no name
+          return (row[0] && String(row[0]).trim()) || (row[1] && String(row[1]).trim());
+        })
+        .map((row: any, index: number) => {
+          const id = row[0] ? String(row[0]).trim() : `p-sheet-${index + 1}`;
+          const name = row[1] ? String(row[1]).trim() : 'สินค้าไม่มีชื่อ';
+          const brand = row[2] ? String(row[2]).trim() : '';
+          
+          // Robust number parser to strip currency symbols, commas, spaces etc.
+          const rawPrice = row[3];
+          const cleanPriceStr = rawPrice ? String(rawPrice).replace(/[^0-9.]/g, '') : '';
+          const price = cleanPriceStr ? Math.max(0, Math.round(parseFloat(cleanPriceStr)) || 0) : 0;
 
-        return { id, name, brand, price, bv, image, color };
-      });
+          const rawBv = row[4];
+          const cleanBvStr = rawBv ? String(rawBv).replace(/[^0-9.]/g, '') : '';
+          const bv = cleanBvStr ? Math.max(0, Math.round(parseFloat(cleanBvStr)) || 0) : Math.round(price * 0.01);
 
+          const image = row[5] ? String(row[5]).trim() : '📦';
+          const color = row[6] ? String(row[6]).trim() : 'from-slate-700 to-slate-900';
+
+          return { id, name, brand, price, bv, image, color };
+        });
+
+      console.log(`[PULL PRODUCTS] Parsed ${parsedProducts.length} valid products.`);
       res.json({ products: parsedProducts });
     } catch (error: any) {
       console.error("Backend pull products error:", error);

@@ -204,6 +204,8 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
 
       let productsPulled: Product[] = [];
       let successMessage = `เชื่อมโยงสเปรดชีต "${sheetTitle}" สำเร็จ`;
+      let hasPullError = false;
+      let pullErrorMessage = '';
       
       if (hasProductsTab) {
         try {
@@ -214,14 +216,19 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
             safeLocalStorage.setItem('phonetwork_products', JSON.stringify(productsPulled));
             await saveProductsToFirestore(productsPulled);
             successMessage += ` และดึงรายการสินค้า ${productsPulled.length} รายการสำเร็จเรียบร้อย!`;
+          } else {
+            successMessage += ` (⚠️ สเปรดชีตเชื่อมต่อได้สำเร็จ แต่พบข้อมูลว่างเปล่าหรือไม่มีรายการสินค้าในแท็บ "Products")`;
           }
         } catch (pullError: any) {
           console.warn('Silent product pull error:', pullError);
+          hasPullError = true;
+          pullErrorMessage = pullError.message || String(pullError);
+          successMessage += ` (❌ แต่ดึงสินค้าไม่สำเร็จ: ${pullErrorMessage})`;
         }
       }
 
       setSyncStatus({
-        success: true,
+        success: !hasPullError,
         message: successMessage,
         sheetTitle,
         productsCount: productsPulled.length,
