@@ -70,6 +70,13 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
+  // Detect if running on a custom domain (such as noinashop.business)
+  const isCustomDomain = typeof window !== 'undefined' && 
+    window.location.hostname !== 'localhost' && 
+    !window.location.hostname.endsWith('run.app') && 
+    !window.location.hostname.endsWith('firebaseapp.com') && 
+    !window.location.hostname.endsWith('web.app');
+
   const handleDownloadZip = async () => {
     setIsDownloading(true);
     setDownloadError(null);
@@ -263,9 +270,17 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
         }
       }
     } catch (err: any) {
+      console.error('Google Sign-In caught error:', err);
+      let errMsg = 'การยืนยันตัวตน Google ไม่ตอบสนองหรือถูกยกเลิก';
+      if (isCustomDomain) {
+        errMsg = `❌ การยืนยันตัวตน Google ไม่ตอบสนอง เนื่องจากท่านใช้งานระบบหลังบ้านผ่านโดเมนส่วนตัว (${window.location.hostname}) ซึ่งไม่ได้รับการอนุญาตโดเมน (Authorized Domains) ใน Firebase Auth ของโปรเจกต์ AI Studio\n\n` +
+                 `💡 วิธีแก้ไขง่ายๆ 2 ช่องทางเพื่อทำการดึง/ซิงค์ชีต:\n` +
+                 `ช่องทางที่ 1 (แนะนำ - อัปเดตทุกหน้าอัตโนมัติ): ให้ท่านเปิดแอปพลิเคชันผ่านลิงก์พรีวิวพัฒนา (.run.app) จากนั้นล็อกอินและกดดึงชีตที่ลิงก์พัฒนา ข้อมูลสินค้าทั้งหมดจะซิงค์เซฟลง Cloud Firestore ตัวเดียวกัน ทำให้ข้อมูลบนโดเมน ${window.location.hostname} ของท่านได้รับการอัปเดตตรงกันทันที!\n\n` +
+                 `ช่องทางที่ 2 (บายพาส): ล็อกอินบนลิงก์พรีวิว (.run.app) -> คัดลอกรหัส Access Token ที่ปรากฏ -> นำรหัสดังกล่าวมาป้อนใส่ช่อง "ทางเลือกที่ 2. เชื่อมโทเค็นสิทธิ์แบบใส่เองคีย์" ด้านบนของหน้านี้เพื่อทำงานต่อได้ทันทีครับ`;
+      }
       setSyncStatus({
         success: false,
-        message: 'การยืนยันตัวตน Google ไม่รอบคอบหรือถูกยกเลิก'
+        message: errMsg
       });
     } finally {
       setIsLoggingIn(false);
@@ -575,8 +590,27 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
                 )}
               </div>
             ) : (
-              <div className="bg-slate-950 p-5 rounded-2xl border border-dashed border-slate-800 text-center py-8">
-                <p className="text-xs text-slate-500 font-medium mb-3">กรุณาล็อกอิน Google Account หรือใช้ปุ่มบายพาสด้านบน</p>
+              <div className="bg-slate-950 p-5 rounded-2xl border border-dashed border-slate-800 text-center py-6 space-y-4">
+                {isCustomDomain && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-xs text-left text-amber-200 space-y-2">
+                    <div className="flex items-center gap-1.5 font-extrabold text-amber-400">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>ตรวจพบโดเมนส่วนตัว: {window.location.hostname}</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-300/90 font-sans">
+                      เนื่องจากแอปทำงานบนโดเมนส่วนตัว ความปลอดภัยของ Firebase/Google จะปฏิเสธการล็อกอินด้วยปุ่มปกติ (unauthorized-domain) เสมอ
+                    </p>
+                    <div className="pt-2 space-y-1.5 border-t border-amber-500/10 text-[10.5px]">
+                      <p className="font-bold text-amber-400">💡 วิธีแก้ไขแนะนำ:</p>
+                      <ul className="list-decimal pl-4 space-y-1 text-slate-300 font-sans">
+                        <li>ไปที่หน้าพัฒนาของ AI Studio (ลงท้ายด้วย <span className="font-mono text-amber-300">.run.app</span>)</li>
+                        <li>ล็อกอินและซิงค์ชีตที่นั่น ข้อมูลจะเซฟลงคลาวด์ Firestore เดียวกันโดยอัตโนมัติ!</li>
+                        <li>หรือคัดลอกรหัส <span className="font-bold text-indigo-400">Access Token</span> จากหน้าต่างนั้นมาใส่กล่อง Bypass ด้านบนได้ทันที</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-slate-500 font-medium mb-1">กรุณาล็อกอิน Google Account หรือใช้ปุ่มบายพาสด้านบน</p>
                 <button
                   onClick={handleLogin}
                   disabled={isLoggingIn}
