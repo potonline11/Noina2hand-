@@ -245,9 +245,25 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
 
       setTickerMessage(`🟢 ซิงค์ Google Sheets "${sheetTitle}" สำเร็จเรียบร้อย!`);
     } catch (err: any) {
+      console.error('Verify and Sync Error:', err);
+      let errMsg = err.message || 'เกิดข้อผิดพลาดในการเชื่อมบัญชีท่อส่งข้อมูลสเปรดชีต';
+      
+      if (errMsg.includes('404')) {
+        const loggedInEmail = user?.email || 'pnmall4u@gmail.com';
+        errMsg = `ไม่สามารถเข้าถึง Google Sheet ดึงข้อมูลไม่สำเร็จ (404 Not Found)\n\n` +
+                 `💡 สาเหตุหลัก:\n` +
+                 `บัญชี Google ที่ท่านเชื่อมโยงอยู่ขณะนี้ (${loggedInEmail}) ไม่มีสิทธิ์เข้าถึงหรือแก้ไขสเปรดชีตนี้\n\n` +
+                 `🛠️ วิธีแก้ไขง่ายๆ:\n` +
+                 `1. เปิดหน้า Google Sheets ของท่าน (สเปรดชีตที่คุณระบุ)\n` +
+                 `2. คลิกปุ่ม "แชร์" (Share) ที่มุมขวาบนของแผ่นงาน Google Sheets\n` +
+                 `3. เพิ่มอีเมล "${loggedInEmail}" ให้เป็น "ผู้แก้ไข" (Editor)\n` +
+                 `4. หรือในช่อง "การเข้าถึงทั่วไป" (General access) เปลี่ยนจาก "จำกัด" (Restricted) ให้เป็น "ทุกคนที่มีลิงก์" (Anyone with the link) และปรับสิทธิ์ด้านขวาเป็น "ผู้แก้ไข" (Editor)\n\n` +
+                 `จากนั้นกลับมากดปุ่ม "ซิงค์ซ้ำ/ดึงข้อมูลชีต" อีกครั้งเพื่อดึงข้อมูลได้ทันทีครับ!`;
+      }
+      
       setSyncStatus({
         success: false,
-        message: err.message || 'เกิดข้อผิดพลาดในการเชื่อมบัญชีท่อส่งข้อมูลสเปรดชีต'
+        message: errMsg
       });
     } finally {
       setIsLoading(false);
