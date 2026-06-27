@@ -154,13 +154,13 @@ export const extractSpreadsheetId = (urlOrId: string): string => {
   }
 
   // Auto-correct template/example URL typo:
-  // Match any variation of the user's spreadsheet ID (starting with 1UL93q or containing hvQOL case-insensitive)
+  // Match only specific, known variations of the user's spreadsheet ID typos (to prevent false-positives on custom user sheets)
   const lower = trimmed.toLowerCase();
   if (
-    trimmed.startsWith('1UL93q') || 
-    lower.includes('hvqol') || 
-    lower.includes('hvqo1') || 
-    lower.includes('hvqolt')
+    trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOL1' ||
+    trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLt-A' ||
+    trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLt' ||
+    (trimmed.length >= 40 && trimmed.startsWith('1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-') && (lower.endsWith('h') || lower.includes('hvqo')))
   ) {
     return '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLT_A';
   }

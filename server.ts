@@ -20,11 +20,12 @@ async function startServer() {
   const sanitizeSpreadsheetId = (id: string): string => {
     const trimmed = id.trim();
     const lower = trimmed.toLowerCase();
+    // Only match exact known typos of our specific template spreadsheet ID to prevent false-positives on other user sheets
     if (
-      trimmed.startsWith('1UL93q') || 
-      lower.includes('hvqol') || 
-      lower.includes('hvqo1') || 
-      lower.includes('hvqolt')
+      trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOL1' ||
+      trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLt-A' ||
+      trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLt' ||
+      (trimmed.length >= 40 && trimmed.startsWith('1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-') && (lower.endsWith('h') || lower.includes('hvqo')))
     ) {
       return '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLT_A';
     }
@@ -168,7 +169,7 @@ async function startServer() {
       }
 
       // Populate headers and data
-      const productsHeaders = [['ID', 'ชื่อสินค้า (Name)', 'แบรนด์ (Brand)', 'ราคา (Price)', 'คะแนน BV (BV)', 'ไอคอนภาพ (Image)', 'สีการ์ด (Color)']];
+      const productsHeaders = [['ID', 'ชื่อสินค้า (Name)', 'แบรนด์ (Brand)', 'ราคา (Price)', 'คะแนน BV (BV)', 'ไอคอนภาพ (Image)', 'สีการ์ด (Color)', 'ลิงก์รูปภาพ (Image URL)']];
       const productsRows = (defaultProducts || []).map((p: any) => [
         p.id,
         p.name,
@@ -176,13 +177,14 @@ async function startServer() {
         p.price,
         p.bv,
         p.image || '📱',
-        p.color || 'from-slate-700 to-slate-900'
+        p.color || 'from-slate-700 to-slate-900',
+        p.image_url || p.imageUrl || ''
       ]);
 
       const updateValuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}/values:batchUpdate`;
       const dataUpdates = [
         {
-          range: 'Products!A1:G100',
+          range: 'Products!A1:H100',
           values: [...productsHeaders, ...productsRows]
         },
         {
@@ -223,7 +225,7 @@ async function startServer() {
     const cleanSpreadsheetId = sanitizeSpreadsheetId(spreadsheetId);
 
     try {
-      const range = 'Products!A2:G200';
+      const range = 'Products!A2:H200';
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}/values/${encodeURIComponent(range)}`;
       
       console.log(`[PULL PRODUCTS] Fetching sheets data for ID: ${cleanSpreadsheetId}`);
@@ -269,8 +271,9 @@ async function startServer() {
 
           const image = row[5] ? String(row[5]).trim() : '📦';
           const color = row[6] ? String(row[6]).trim() : 'from-slate-700 to-slate-900';
+          const image_url = row[7] ? String(row[7]).trim() : '';
 
-          return { id, name, brand, price, bv, image, color };
+          return { id, name, brand, price, bv, image, color, image_url };
         });
 
       console.log(`[PULL PRODUCTS] Parsed ${parsedProducts.length} valid products.`);
