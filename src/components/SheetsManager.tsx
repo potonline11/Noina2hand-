@@ -35,6 +35,7 @@ import {
   pullProductsFromSheet,
   initGoogleAuth,
   setManualAccessToken,
+  fetchGoogleUserInfo,
   saveLinkedSheetConfigToFirestore,
   getLinkedSheetConfigFromFirestore,
   saveProductsToFirestore,
@@ -207,11 +208,15 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
     try {
       setManualAccessToken(cleanToken);
       setToken(cleanToken);
+      
+      // Attempt to load real Google profile info from the provided token
+      const realInfo = await fetchGoogleUserInfo(cleanToken);
       setUser({
-        displayName: 'นักพัฒนา (Manual Token)',
-        email: 'oauth-token@manually-pasted.local',
-        photoURL: null
-      });
+        displayName: realInfo?.displayName || 'นักพัฒนา (Manual Token)',
+        email: realInfo?.email || 'oauth-token@manually-pasted.local',
+        photoURL: realInfo?.photoURL || null
+      } as any);
+
       setTickerMessage('🔑 เชื่อมต่อด้วยเซสชันคีย์แบบกำหนดเองแล้ว!');
       setSyncStatus({
         success: true,
@@ -284,7 +289,24 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
       let errMsg = err.message || 'เกิดข้อผิดพลาดในการเชื่อมบัญชีท่อส่งข้อมูลสเปรดชีต';
       
       if (errMsg.includes('404')) {
-        const loggedInEmail = user?.email || 'pnmall4u@gmail.com';
+        let loggedInEmail = user?.email || '';
+        if (!loggedInEmail || loggedInEmail.includes('manually-pasted.local')) {
+          try {
+            const realInfo = await fetchGoogleUserInfo(currentToken);
+            if (realInfo && realInfo.email) {
+              loggedInEmail = realInfo.email;
+              setUser({
+                displayName: realInfo.displayName,
+                email: realInfo.email,
+                photoURL: realInfo.photoURL
+              } as any);
+            } else {
+              loggedInEmail = 'pnmall4u@gmail.com';
+            }
+          } catch {
+            loggedInEmail = 'pnmall4u@gmail.com';
+          }
+        }
         errMsg = `ไม่สามารถเข้าถึง Google Sheet ดึงข้อมูลไม่สำเร็จ (404 Not Found)\n\n` +
                  `💡 สาเหตุหลัก:\n` +
                  `บัญชี Google ที่ท่านเชื่อมโยงอยู่ขณะนี้ (${loggedInEmail}) ไม่มีสิทธิ์เข้าถึงหรือแก้ไขสเปรดชีตนี้\n\n` +

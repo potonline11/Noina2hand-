@@ -38,6 +38,27 @@ export const setManualAccessToken = (token: string | null) => {
   }
 };
 
+export const fetchGoogleUserInfo = async (token: string): Promise<{ displayName: string; email: string; photoURL: string | null } | null> => {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        displayName: data.name || 'ผู้ใช้งาน Google Account',
+        email: data.email || 'unknown@gmail.com',
+        photoURL: data.picture || null
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to fetch google userinfo:', err);
+  }
+  return null;
+};
+
 // Auth State Callback Management
 export const initGoogleAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
@@ -46,7 +67,15 @@ export const initGoogleAuth = (
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
+        // Try fetching real profile info for richer UI experience
+        const realInfo = await fetchGoogleUserInfo(cachedAccessToken);
+        const mergedUser = realInfo ? {
+          ...user,
+          displayName: realInfo.displayName,
+          email: realInfo.email,
+          photoURL: realInfo.photoURL
+        } as unknown as User : user;
+        if (onAuthSuccess) onAuthSuccess(mergedUser, cachedAccessToken);
       } else {
         // We have a user session, but the access token needs to be refreshed or loaded via sign-in popup.
         if (onAuthFailure) onAuthFailure();
@@ -55,11 +84,12 @@ export const initGoogleAuth = (
       // Keep manual access token valid even if Firebase auth is not signed in
       if (cachedAccessToken) {
         if (onAuthSuccess) {
-          // Provide a dummy virtual user or ignore Firebase's state for manual token
+          // Fetch user info for manual token to show their real Google profile!
+          const realInfo = await fetchGoogleUserInfo(cachedAccessToken);
           const dummyUser = {
-            displayName: 'นักพัฒนา (Manual Token)',
-            email: 'oauth-token@manually-pasted.local',
-            photoURL: null
+            displayName: realInfo?.displayName || 'นักพัฒนา (Manual Token)',
+            email: realInfo?.email || 'oauth-token@manually-pasted.local',
+            photoURL: realInfo?.photoURL || null
           } as unknown as User;
           onAuthSuccess(dummyUser, cachedAccessToken);
         }
