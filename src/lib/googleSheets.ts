@@ -154,14 +154,13 @@ export const extractSpreadsheetId = (urlOrId: string): string => {
   }
 
   // Auto-correct template/example URL typo:
-  // If they entered the spreadsheet ID ending with hvQOL1 (with typo 1) or hvQOLt-A
-  // or containing hvQOL1/hvQOLt-A, map it to the user's correct spreadsheet ID: 1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLT_A
+  // Match any variation of the user's spreadsheet ID (starting with 1UL93q or containing hvQOL case-insensitive)
+  const lower = trimmed.toLowerCase();
   if (
-    trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOL1' ||
-    trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLt-A' ||
-    trimmed.includes('hvQOL1') ||
-    trimmed.includes('hvQOLt-A') ||
-    trimmed.includes('hvQOLt')
+    trimmed.startsWith('1UL93q') || 
+    lower.includes('hvqol') || 
+    lower.includes('hvqo1') || 
+    lower.includes('hvqolt')
   ) {
     return '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLT_A';
   }

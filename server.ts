@@ -16,6 +16,21 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Helper to robustly sanitize spreadsheetId from typos
+  const sanitizeSpreadsheetId = (id: string): string => {
+    const trimmed = id.trim();
+    const lower = trimmed.toLowerCase();
+    if (
+      trimmed.startsWith('1UL93q') || 
+      lower.includes('hvqol') || 
+      lower.includes('hvqo1') || 
+      lower.includes('hvqolt')
+    ) {
+      return '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLT_A';
+    }
+    return trimmed;
+  };
+
   // Google Sheets API proxy endpoints
   app.post("/api/sheets/metadata", async (req, res) => {
     const { spreadsheetId, accessToken } = req.body;
@@ -23,8 +38,10 @@ async function startServer() {
       return res.status(400).json({ error: "Missing spreadsheetId or accessToken" });
     }
 
+    const cleanSpreadsheetId = sanitizeSpreadsheetId(spreadsheetId);
+
     try {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -53,9 +70,11 @@ async function startServer() {
       return res.status(400).json({ error: "Missing spreadsheetId or accessToken" });
     }
 
+    const cleanSpreadsheetId = sanitizeSpreadsheetId(spreadsheetId);
+
     try {
       // Fetch current sheet tabs
-      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}`;
       const metaRes = await fetch(metaUrl, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
@@ -93,7 +112,7 @@ async function startServer() {
       }
 
       if (requests.length > 0) {
-        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
+        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}:batchUpdate`;
         const updateRes = await fetch(updateUrl, {
           method: 'POST',
           headers: {
@@ -119,7 +138,7 @@ async function startServer() {
         p.color || 'from-slate-700 to-slate-900'
       ]);
 
-      const updateValuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`;
+      const updateValuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}/values:batchUpdate`;
       const dataUpdates = [
         {
           range: 'Products!A1:G100',
@@ -160,11 +179,13 @@ async function startServer() {
       return res.status(400).json({ error: "Missing spreadsheetId or accessToken" });
     }
 
+    const cleanSpreadsheetId = sanitizeSpreadsheetId(spreadsheetId);
+
     try {
       const range = 'Products!A2:G200';
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}/values/${encodeURIComponent(range)}`;
       
-      console.log(`[PULL PRODUCTS] Fetching sheets data for ID: ${spreadsheetId}`);
+      console.log(`[PULL PRODUCTS] Fetching sheets data for ID: ${cleanSpreadsheetId}`);
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -225,9 +246,11 @@ async function startServer() {
       return res.status(400).json({ error: "Missing required parameters" });
     }
 
+    const cleanSpreadsheetId = sanitizeSpreadsheetId(spreadsheetId);
+
     try {
       const range = 'Orders!A:J';
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${cleanSpreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
 
       const totalAmount = product.price * quantity;
       const totalBV = product.bv * quantity;

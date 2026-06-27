@@ -128,7 +128,9 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
       if (!cfg) return null;
       const originalId = cfg.spreadsheetId || '';
       const correctedId = extractSpreadsheetId(cfg.spreadsheetUrl || originalId);
-      if (correctedId !== originalId) {
+      const hasWrongUrl = cfg.spreadsheetUrl && extractSpreadsheetId(cfg.spreadsheetUrl) !== correctedId;
+
+      if (correctedId !== originalId || hasWrongUrl) {
         return {
           spreadsheetId: correctedId,
           spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${correctedId}/edit`
@@ -141,25 +143,22 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
     const config = getLinkedSheetConfig();
     if (config) {
       const sanitized = sanitizeConfig(config);
-      if (sanitized && sanitized.spreadsheetId !== config.spreadsheetId) {
+      if (sanitized && (sanitized.spreadsheetId !== config.spreadsheetId || sanitized.spreadsheetUrl !== config.spreadsheetUrl)) {
         saveLinkedSheetConfig(sanitized);
         saveLinkedSheetConfigToFirestore(sanitized);
-        setLinkedConfig(sanitized);
-        setSheetUrlOrId(sanitized.spreadsheetUrl);
-      } else {
-        setLinkedConfig(config);
-        setSheetUrlOrId(config.spreadsheetUrl || config.spreadsheetId);
       }
+      setLinkedConfig(sanitized);
+      setSheetUrlOrId(sanitized ? sanitized.spreadsheetUrl : '');
     } else {
       getLinkedSheetConfigFromFirestore().then((remoteConfig) => {
         if (remoteConfig) {
           const sanitized = sanitizeConfig(remoteConfig);
           saveLinkedSheetConfig(sanitized);
-          if (sanitized && sanitized.spreadsheetId !== remoteConfig.spreadsheetId) {
+          if (sanitized && (sanitized.spreadsheetId !== remoteConfig.spreadsheetId || sanitized.spreadsheetUrl !== remoteConfig.spreadsheetUrl)) {
             saveLinkedSheetConfigToFirestore(sanitized);
           }
           setLinkedConfig(sanitized);
-          setSheetUrlOrId(sanitized.spreadsheetUrl || sanitized.spreadsheetId);
+          setSheetUrlOrId(sanitized ? sanitized.spreadsheetUrl : '');
         }
       });
     }
@@ -563,6 +562,7 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
                   placeholder="ป้อนรหัส OAuth Access Token..."
                   value={manualTokenInput}
                   onChange={(e) => setManualTokenInput(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   className="bg-slate-950 flex-1 px-3 py-2 rounded-xl border border-slate-800 text-[11px] text-slate-101 focus:outline-none focus:border-indigo-500 font-mono"
                 />
                 <button
@@ -616,6 +616,7 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
                         type="text" 
                         readOnly 
                         value={token} 
+                        onFocus={(e) => e.target.select()}
                         className="bg-slate-900 border border-slate-800 text-[9px] text-slate-300 font-mono px-3 py-1.5 rounded-lg flex-1 focus:outline-none" 
                       />
                       <button 
@@ -716,6 +717,7 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
                     placeholder="แปะ URL Google Sheets ของท่านที่เข้าสิทธิ์แก้ไขได้..."
                     value={sheetUrlOrId}
                     onChange={(e) => setSheetUrlOrId(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     className="w-full bg-slate-900 pl-9 pr-3 py-2.5 rounded-xl border border-slate-800 text-slate-101 text-xs font-medium focus:outline-none focus:border-emerald-500 transition"
                   />
                 </div>
