@@ -18,7 +18,8 @@ import {
   Github,
   Key,
   FileCode,
-  X
+  X,
+  Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -69,6 +70,14 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
   const [isZipModalOpen, setIsZipModalOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // Apps Script Web App API state
+  const [appsScriptUrl, setAppsScriptUrl] = useState(() => {
+    return safeLocalStorage.getItem('phonetwork_apps_script_url') || 'https://script.google.com/macros/s/AKfycbxule5YPjMRzd0NTxWrb0xDEJ7ZzqgLPTat_LaMQpX38-KzcF3d3-cQ7zr3MNcwaUtY4A/exec';
+  });
+  const [isAppsScriptLoading, setIsAppsScriptLoading] = useState(false);
+  const [appsScriptError, setAppsScriptError] = useState<string | null>(null);
+  const [appsScriptSuccess, setAppsScriptSuccess] = useState<string | null>(null);
 
   // Detect if running on a custom domain (such as noinashop.business)
   const isCustomDomain = typeof window !== 'undefined' && 
@@ -435,6 +444,80 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
     setTickerMessage('🧹 ล้างแคชรายการสินค้าและปิดฐานข้อมูลจำลองเรียบร้อย!');
   };
 
+  const handleFetchFromAppsScript = async (customUrl?: string) => {
+    const targetUrl = (customUrl || appsScriptUrl).trim();
+    if (!targetUrl) {
+      setAppsScriptError('กรุณากรอกลิงก์ Google Apps Script API');
+      return;
+    }
+
+    setIsAppsScriptLoading(true);
+    setAppsScriptError(null);
+    setAppsScriptSuccess(null);
+
+    try {
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        throw new Error(`ไม่สามารถดึงข้อมูลได้ (สถานะตอบกลับ: ${response.status})`);
+      }
+      const data = await response.json();
+      
+      if (!Array.isArray(data)) {
+        throw new Error('รูปแบบข้อมูล JSON ที่ได้รับไม่ถูกต้อง (ระบบต้องการรูปแบบอาเรย์ของข้อมูลสินค้า)');
+      }
+
+      const mappedProducts = data.map((item: any) => {
+        const getBrandStyling = (brandName: string) => {
+          const b = (brandName || '').toLowerCase();
+          if (b.includes('apple') || b.includes('iphone')) {
+            return { color: 'from-slate-800 to-slate-950', image: '📱' };
+          }
+          if (b.includes('samsung')) {
+            return { color: 'from-blue-900 to-indigo-950', image: '🤖' };
+          }
+          if (b.includes('oppo') || b.includes('vivo')) {
+            return { color: 'from-teal-800 to-emerald-950', image: '📸' };
+          }
+          if (b.includes('xiaomi') || b.includes('redmi')) {
+            return { color: 'from-orange-800 to-red-950', image: '🔥' };
+          }
+          return { color: 'from-slate-900 to-indigo-950', image: '📦' };
+        };
+
+        const styling = getBrandStyling(item.brand);
+
+        return {
+          id: item.id ? String(item.id) : Math.random().toString(36).substring(2, 9),
+          name: item.name || 'สินค้าไร้ชื่อ',
+          brand: item.brand || 'Other',
+          price: Number(item.price) || 0,
+          bv: Number(item.bv) || 0,
+          image: styling.image,
+          color: styling.color,
+          image_url: item.image_url || item.imageUrl || ''
+        };
+      });
+
+      if (mappedProducts.length > 0) {
+        setProducts(mappedProducts);
+        safeLocalStorage.setItem('phonetwork_products', JSON.stringify(mappedProducts));
+        safeLocalStorage.setItem('phonetwork_apps_script_url', targetUrl);
+        await saveProductsToFirestore(mappedProducts);
+
+        setAppsScriptSuccess(`ดึงข้อมูลสำเร็จ! ซิงค์สินค้าเข้าฐานข้อมูลจำนวน ${mappedProducts.length} รุ่นเรียบร้อยแล้ว และหน้าเว็บอัปเดตอัตโนมัติทันทีครับ`);
+        setTickerMessage(`🎯 อัปเดตข้อมูลระดับผลิตภัณฑ์ผ่าน Google Apps Script Web App API เรียบร้อย! (${mappedProducts.length} รายการ)`);
+      } else {
+        throw new Error('ไม่พบสินค้าที่สมบูรณ์ในอาเรย์ข้อมูลที่ดึงมา');
+      }
+
+    } catch (err: any) {
+      console.error('Error fetching from Apps Script Web App API:', err);
+      setAppsScriptError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมโยงกับ API กรุณาตรวจความถูกต้องของ URL และอนุญาตสิทธิ์เป็น Everyone');
+    } finally {
+      setIsAppsScriptLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* 1. Header Box */}
@@ -503,6 +586,80 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
             <span>เปิดหน้าสร้างคลังใหม่บน GitHub</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+
+      {/* Google Apps Script Web App API Section */}
+      <div className="bg-slate-950 border border-indigo-500/20 p-6 rounded-3xl text-left space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-500/15 rounded-xl text-indigo-400 border border-indigo-500/20">
+              <Cpu className="w-5 h-5 animate-pulse text-indigo-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-101 uppercase tracking-widest flex items-center gap-1.5 flex-wrap">
+                <span>ดึงข้อมูลสินค้าผ่าน Google Apps Script Web App API</span>
+                <span className="p-0.5 px-2 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[9px] font-mono rounded-md font-bold uppercase tracking-wider">ด่วน / ไม่ใช้สิทธิ์ซับซ้อน</span>
+              </h3>
+              <p className="text-xs text-slate-400 font-sans mt-0.5">เชื่อมโยง API ของคุณเพื่อดาวน์โหลดผลิตภัณฑ์เข้ามาแสดงผลบน UI การ์ดสินค้า และกระจายข้อมูลแบบเรียลไทม์ทันที</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-slate-900/40 rounded-2xl border border-slate-850/80 space-y-4">
+          <div className="flex flex-col lg:flex-row gap-3">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="ป้อน URL ของ Google Apps Script Web App API (https://script.google.com/macros/s/.../exec)"
+                value={appsScriptUrl}
+                onChange={(e) => setAppsScriptUrl(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                className="w-full bg-slate-950 px-4 py-3 rounded-xl border border-slate-800 text-[11px] text-slate-100 font-mono focus:outline-none focus:border-indigo-500 transition"
+              />
+            </div>
+            <button
+              onClick={() => handleFetchFromAppsScript()}
+              disabled={isAppsScriptLoading}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs transition duration-150 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+            >
+              {isAppsScriptLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                  <span>กำลังดึงข้อมูล...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} />
+                  <span>ดึงข้อมูลสินค้า & อัปเดตทันที</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {appsScriptError && (
+            <div className="p-3.5 bg-red-500/10 border border-red-500/25 text-red-400 rounded-xl text-xs flex items-start gap-2 animate-fade-in font-sans">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{appsScriptError}</span>
+            </div>
+          )}
+
+          {appsScriptSuccess && (
+            <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded-xl text-xs flex items-start gap-2 animate-fade-in font-sans">
+              <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{appsScriptSuccess}</span>
+            </div>
+          )}
+
+          {/* Tips for User */}
+          <div className="text-[11px] text-slate-400 space-y-1 bg-slate-950/40 p-3.5 rounded-xl border border-slate-850">
+            <p className="font-extrabold text-indigo-400 flex items-center gap-1">💡 คำแนะนำสำหรับการเชื่อมต่อ Apps Script API:</p>
+            <ul className="list-disc list-inside space-y-1.5 text-slate-400 mt-1 leading-relaxed">
+              <li>เปิดสิทธิ์สเปรดชีตของคุณ และสร้างสคริปต์ Web App (<code className="text-amber-400 bg-slate-900 px-1 py-0.5 rounded font-mono">doGet</code>) ส่งกลับข้อมูลในรูปแบบ <code className="text-amber-400 bg-slate-900 px-1 py-0.5 rounded font-mono">[{`{ id, brand, name, price, bv, image_url }`}]</code></li>
+              <li>ตอนสั่ง Deployment ในหน้าต่าง Apps Script ต้องตั้งค่า <strong className="text-slate-300">"Execute as: Me"</strong> และ <strong className="text-slate-300">"Who has access: Anyone"</strong> เพื่อให้ระบบหน้าเว็บสามารถดึงข้อมูลข้ามโดเมนได้เสรีครับ</li>
+              <li>ข้อมูลสินค้าทั้งหมดจะถูกซิงก์เก็บเข้าสู่ Firebase และคลัง Local Storage เมื่อผู้ใช้งานคนใดเปิดแอปนี้ ข้อมูลสินค้าของคุณจะแสดงผลอัตโนมัติแบบเรียลไทม์!</li>
+            </ul>
+          </div>
         </div>
       </div>
 

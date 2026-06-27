@@ -1600,7 +1600,16 @@ export default function App() {
                       {/* Interactive stylized simulated image box */}
                       <div className={`w-full h-40 rounded-xl bg-gradient-to-br ${prod.color} flex items-center justify-center text-6xl shadow-inner relative overflow-hidden mb-4 select-none`}>
                         <div className="absolute inset-0 bg-slate-950/20 mix-blend-overlay" />
-                        <span className="transform group-hover:scale-110 transition-transform duration-300">{prod.image}</span>
+                        {prod.image_url || prod.imageUrl ? (
+                          <img 
+                            src={prod.image_url || prod.imageUrl} 
+                            alt={prod.name}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
+                          />
+                        ) : (
+                          <span className="transform group-hover:scale-110 transition-transform duration-300">{prod.image}</span>
+                        )}
                         
                         <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-bold text-indigo-400 font-mono tracking-wider border border-indigo-500/10">
                           {prod.brand.toUpperCase()}

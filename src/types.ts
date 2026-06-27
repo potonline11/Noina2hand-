@@ -33,6 +33,8 @@ export interface Product {
   bv: number; // Business Volume points (e.g., 1 BV = 1 THB or calculated separately)
   image: string; // Dynamic simulated image descriptor
   color: string;
+  image_url?: string;
+  imageUrl?: string;
 }
 
 export interface Transaction {
