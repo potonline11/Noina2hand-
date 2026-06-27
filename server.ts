@@ -216,6 +216,108 @@ async function startServer() {
     }
   });
 
+  app.post("/api/sheets/create", async (req, res) => {
+    const { accessToken, defaultProducts } = req.body;
+    if (!accessToken) {
+      return res.status(400).json({ error: "Missing accessToken" });
+    }
+
+    try {
+      console.log("[CREATE SPREADSHEET] Initializing a brand-new Google Sheet...");
+      // 1. Create a new Google Sheet
+      const createUrl = "https://sheets.googleapis.com/v4/spreadsheets";
+      const createRes = await fetch(createUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          properties: {
+            title: "PHO NETWORK - ฐานข้อมูลสินค้าและยอดซื้อสเปรดชีต"
+          },
+          sheets: [
+            {
+              properties: {
+                title: "Products",
+                gridProperties: { rowCount: 100, columnCount: 10 }
+              }
+            },
+            {
+              properties: {
+                title: "Orders",
+                gridProperties: { rowCount: 1000, columnCount: 15 }
+              }
+            }
+          ]
+        })
+      });
+
+      if (!createRes.ok) {
+        const errorData = await createRes.json().catch(() => ({}));
+        return res.status(createRes.status).json({
+          error: errorData.error?.message || "ไม่สามารถสร้างสเปรดชีตใหม่บน Google Drive ของท่านได้"
+        });
+      }
+
+      const newSheet = await createRes.json();
+      const newSpreadsheetId = newSheet.spreadsheetId;
+      const newSpreadsheetUrl = newSheet.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${newSpreadsheetId}/edit`;
+
+      console.log(`[CREATE SPREADSHEET] Created spreadsheet ID: ${newSpreadsheetId}`);
+
+      // 2. Populate Products with default products and Orders headers
+      const productsHeaders = [['ID', 'ชื่อสินค้า (Name)', 'แบรนด์ (Brand)', 'ราคา (Price)', 'คะแนน BV (BV)', 'ไอคอนภาพ (Image)', 'สีการ์ด (Color)', 'ลิงก์รูปภาพ (Image URL)']];
+      const productsRows = (defaultProducts || []).map((p: any) => [
+        p.id,
+        p.name,
+        p.brand,
+        p.price,
+        p.bv,
+        p.image || '📱',
+        p.color || 'from-slate-700 to-slate-900',
+        p.image_url || p.imageUrl || ''
+      ]);
+
+      const updateValuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}/values:batchUpdate`;
+      const updateRes = await fetch(updateValuesUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          valueInputOption: "USER_ENTERED",
+          data: [
+            {
+              range: 'Products!A1:H100',
+              values: [...productsHeaders, ...productsRows]
+            },
+            {
+              range: 'Orders!A1:J1',
+              values: [['Order ID', 'วันเวลา (Timestamp)', 'รหัสลูกค้า (Member ID)', 'ชื่อลูกค้า (Customer Name)', 'สินค้าที่สั่ง (Product)', 'จำนวนที่สั่ง (Quantity)', 'ราคาต่อชิ้น (Price)', 'ราคารวม (Total Price)', 'คะแนน BV รวม (Total BV)', 'ผู้แนะนำ / สปอนเซอร์ (Sponsor)']]
+            }
+          ]
+        })
+      });
+
+      if (!updateRes.ok) {
+        const errText = await updateRes.text();
+        console.warn("Failed to populate initial spreadsheet values, but sheet was created:", errText);
+      }
+
+      res.json({
+        spreadsheetId: newSpreadsheetId,
+        spreadsheetUrl: newSpreadsheetUrl,
+        message: "สร้างและลงโครงสร้างสเปรดชีตใหม่บนไดรฟ์ของท่านเรียบร้อยแล้ว!"
+      });
+
+    } catch (error: any) {
+      console.error("Backend sheets create error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/sheets/pull-products", async (req, res) => {
     const { spreadsheetId, accessToken } = req.body;
     if (!spreadsheetId || !accessToken) {

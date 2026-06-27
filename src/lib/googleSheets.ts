@@ -207,6 +207,26 @@ export const initializeSpreadsheetStructure = async (spreadsheetId: string, toke
 };
 
 /**
+ * Automatically create a brand new spreadsheet on user's drive and populate it
+ */
+export const createNewSpreadsheetOnDrive = async (token: string, defaultProducts: Product[]): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> => {
+  const response = await fetch('/api/sheets/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ accessToken: token, defaultProducts })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'ไม่สามารถสร้างสเปรดชีตใหม่ได้');
+  }
+
+  return response.json();
+};
+
+/**
  * Pull products list from Products sheet tab
  */
 export const pullProductsFromSheet = async (spreadsheetId: string, token: string): Promise<Product[]> => {

@@ -31,6 +31,7 @@ import {
   extractSpreadsheetId, 
   fetchSpreadsheetMetadata, 
   initializeSpreadsheetStructure, 
+  createNewSpreadsheetOnDrive,
   pullProductsFromSheet,
   initGoogleAuth,
   setManualAccessToken,
@@ -394,6 +395,42 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
       setSyncStatus({
         success: false,
         message: err.message || 'โครงสร้างการเขียนขัดข้อง ประเมินความปลอดภัยจาก Google Sheets API'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateNewSheet = async () => {
+    if (!token) {
+      setSyncStatus({
+        success: false,
+        message: 'กรุณาทำการเข้าสู่ระบบ Google Account ด้านซ้ายก่อนทำการสร้างสเปรดชีต'
+      });
+      return;
+    }
+    setIsLoading(true);
+    setSyncStatus({ message: '⏳ กำลังส่งคำร้องขอสร้างไฟล์สเปรดชีตใหม่และอัปโหลดโครงสร้างสินค้าบน Google Drive...' });
+    
+    try {
+      const result = await createNewSpreadsheetOnDrive(token, INITIAL_PRODUCTS);
+      const config = {
+        spreadsheetId: result.spreadsheetId,
+        spreadsheetUrl: result.spreadsheetUrl
+      };
+      
+      saveLinkedSheetConfig(config);
+      await saveLinkedSheetConfigToFirestore(config);
+      setLinkedConfig(config);
+      setSheetUrlOrId(result.spreadsheetUrl);
+      
+      setTickerMessage('🆕 สร้างและเชื่อมสเปรดชีตใหม่สำเร็จแล้วบนไดรฟ์ของคุณ!');
+      await handleVerifyAndSync(result.spreadsheetId, token);
+    } catch (err: any) {
+      console.error('Create New Sheet Error:', err);
+      setSyncStatus({
+        success: false,
+        message: err.message || 'ไม่สามารถสร้างสเปรดชีตใหม่บนไดรฟ์ของคุณได้สำเร็จ'
       });
     } finally {
       setIsLoading(false);
@@ -899,6 +936,18 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
               </div>
             </form>
 
+            {token && (
+              <button
+                type="button"
+                onClick={handleCreateNewSheet}
+                disabled={isLoading}
+                className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-black text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+                <span>สร้างสเปรดชีตใหม่บนไดรฟ์ของฉันโดยอัตโนมัติ (แนะนำ ✨ ทำงานได้ 100%)</span>
+              </button>
+            )}
+
             <div className="bg-slate-900/30 p-3.5 rounded-2xl border border-slate-900/60 text-[11px] text-slate-500 leading-relaxed space-y-1.5">
               <div className="flex items-center gap-1 font-bold text-slate-400">
                 <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
@@ -906,7 +955,7 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
               </div>
               <ul className="list-disc pl-4 space-y-1">
                 <li>เปิดชีตขึ้นมาใหม่ผ่าน <a href="https://sheets.new" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-bold">Google Sheets</a> เพื่อใช้เก็บฐานข้อมูล</li>
-                <li>ตั้งชื่อชีตและคัดลอกเบราว์เซอร์ URL มาผูกเพื่อเชื่อมต่อ</li>
+                <li>ตั้งชื่อชีตและคัดลอกเบราว์เซอร์ URL มาผูกเพื่อเชื่อมต่อ หรือคลิกปุ่มสีเขียว "สร้างสเปรดชีตใหม่โดยอัตโนมัติ" ด้านบนได้เลยครับ!</li>
               </ul>
             </div>
 
@@ -923,9 +972,20 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
                     {syncStatus.success === true ? '✅' : syncStatus.success === false ? '❌' : '⏳'}
                   </span>
                   <div className="flex-1 space-y-2">
-                    <p className="font-semibold">{syncStatus.message}</p>
+                    <div className="font-semibold whitespace-pre-wrap">{syncStatus.message}</div>
                     
-                    <div className="flex flex-wrap gap-2 pt-1">
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {syncStatus.success === false && token && (
+                        <button
+                          onClick={handleCreateNewSheet}
+                          disabled={isLoading}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold text-[10px] flex items-center gap-1 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>สร้างสเปรดชีตใหม่ลงไดรฟ์ของฉันทันที (แก้ไขปัญหา 404/สิทธิ์การเข้าถึง ✨)</span>
+                        </button>
+                      )}
+
                       {!syncStatus.hasProductsTab && syncStatus.success && (
                         <button
                           onClick={handleInitializeStructure}
