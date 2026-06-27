@@ -123,17 +123,43 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
   const [copiedOrdersHeader, setCopiedOrdersHeader] = useState(false);
 
   useEffect(() => {
+    // Helper to sanitize/auto-correct config on load
+    const sanitizeConfig = (cfg: any) => {
+      if (!cfg) return null;
+      const originalId = cfg.spreadsheetId || '';
+      const correctedId = extractSpreadsheetId(cfg.spreadsheetUrl || originalId);
+      if (correctedId !== originalId) {
+        return {
+          spreadsheetId: correctedId,
+          spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${correctedId}/edit`
+        };
+      }
+      return cfg;
+    };
+
     // 1. Check existing Linked sheet config
     const config = getLinkedSheetConfig();
     if (config) {
-      setLinkedConfig(config);
-      setSheetUrlOrId(config.spreadsheetUrl || config.spreadsheetId);
+      const sanitized = sanitizeConfig(config);
+      if (sanitized && sanitized.spreadsheetId !== config.spreadsheetId) {
+        saveLinkedSheetConfig(sanitized);
+        saveLinkedSheetConfigToFirestore(sanitized);
+        setLinkedConfig(sanitized);
+        setSheetUrlOrId(sanitized.spreadsheetUrl);
+      } else {
+        setLinkedConfig(config);
+        setSheetUrlOrId(config.spreadsheetUrl || config.spreadsheetId);
+      }
     } else {
       getLinkedSheetConfigFromFirestore().then((remoteConfig) => {
         if (remoteConfig) {
-          saveLinkedSheetConfig(remoteConfig);
-          setLinkedConfig(remoteConfig);
-          setSheetUrlOrId(remoteConfig.spreadsheetUrl || remoteConfig.spreadsheetId);
+          const sanitized = sanitizeConfig(remoteConfig);
+          saveLinkedSheetConfig(sanitized);
+          if (sanitized && sanitized.spreadsheetId !== remoteConfig.spreadsheetId) {
+            saveLinkedSheetConfigToFirestore(sanitized);
+          }
+          setLinkedConfig(sanitized);
+          setSheetUrlOrId(sanitized.spreadsheetUrl || sanitized.spreadsheetId);
         }
       });
     }

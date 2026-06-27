@@ -144,14 +144,28 @@ export const saveLinkedSheetConfig = (config: SheetConfig | null) => {
  * Extract spreadsheet ID from Google Sheets URL or raw ID
  */
 export const extractSpreadsheetId = (urlOrId: string): string => {
-  const trimmed = urlOrId.trim();
+  let trimmed = urlOrId.trim();
   if (!trimmed) return '';
   
   // Regex to match "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit..."
   const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   if (match && match[1]) {
-    return match[1];
+    trimmed = match[1];
   }
+
+  // Auto-correct template/example URL typo:
+  // If they entered the spreadsheet ID ending with hvQOL1 (with typo 1) or hvQOLt-A
+  // or containing hvQOL1/hvQOLt-A, map it to the user's correct spreadsheet ID: 1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLT_A
+  if (
+    trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOL1' ||
+    trimmed === '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLt-A' ||
+    trimmed.includes('hvQOL1') ||
+    trimmed.includes('hvQOLt-A') ||
+    trimmed.includes('hvQOLt')
+  ) {
+    return '1UL93q_PpKGIZocvcD6ShLwbDJP-nU1emB5-hvQOLT_A';
+  }
+
   return trimmed;
 };
 
