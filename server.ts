@@ -31,6 +31,47 @@ async function startServer() {
     return trimmed;
   };
 
+  // Google Apps Script Web App Proxy to completely bypass browser CORS redirection limits
+  app.post("/api/sheets/apps-script-proxy", async (req, res) => {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: "Missing Apps Script Web App URL" });
+    }
+
+    try {
+      console.log(`[Apps Script Proxy] Server-side fetching: ${url}`);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: `Error from Google Apps Script Web App (Status ${response.status})`
+        });
+      }
+
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        return res.json(data);
+      } catch (jsonErr) {
+        console.error("Failed to parse Apps Script response as JSON. Content:", text.substring(0, 1000));
+        return res.status(422).json({
+          error: "API ของคุณไม่ได้ส่งกลับค่าเป็นรูปแบบ JSON ที่ถูกต้อง กรุณาตรวจสอบให้แน่ใจว่าเว็บแอปถูกแชร์แบบสิทธิ์ 'Anyone' และโค้ด doGet() ส่งคืนค่าเป็น ContentService.createTextOutput() รูปแบบ JSON string แล้วครับ",
+          details: text.substring(0, 200)
+        });
+      }
+    } catch (err: any) {
+      console.error("[Apps Script Proxy Route Error]:", err);
+      return res.status(500).json({
+        error: `ไม่สามารถเชื่อมต่อระบบ API คลาวด์ของ Google ได้: ${err.message || err}`
+      });
+    }
+  });
+
   // Google Sheets API proxy endpoints
   app.post("/api/sheets/metadata", async (req, res) => {
     const { spreadsheetId, accessToken } = req.body;

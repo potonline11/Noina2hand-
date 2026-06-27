@@ -73,7 +73,7 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
 
   // Apps Script Web App API state
   const [appsScriptUrl, setAppsScriptUrl] = useState(() => {
-    return safeLocalStorage.getItem('phonetwork_apps_script_url') || 'https://script.google.com/macros/s/AKfycbxule5YPjMRzd0NTxWrb0xDEJ7ZzqgLPTat_LaMQpX38-KzcF3d3-cQ7zr3MNcwaUtY4A/exec';
+    return safeLocalStorage.getItem('phonetwork_apps_script_url') || 'https://script.google.com/macros/s/AKfycbI84MhnCZb1O7TYrRCwjPTuZwVy4Ui3ZFeykp5Ppwt8M2NcurerWXS-fcvnkPywkGaJg/exec';
   });
   const [isAppsScriptLoading, setIsAppsScriptLoading] = useState(false);
   const [appsScriptError, setAppsScriptError] = useState<string | null>(null);
@@ -456,10 +456,20 @@ export default function SheetsManager({ products, setProducts, setTickerMessage 
     setAppsScriptSuccess(null);
 
     try {
-      const response = await fetch(targetUrl);
+      // Fetch via server-side proxy to completely bypass browser CORS redirection limitations!
+      const response = await fetch('/api/sheets/apps-script-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: targetUrl })
+      });
+
       if (!response.ok) {
-        throw new Error(`ไม่สามารถดึงข้อมูลได้ (สถานะตอบกลับ: ${response.status})`);
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `ไม่สามารถดึงข้อมูลได้ผ่าน Proxy (สถานะตอบกลับ: ${response.status})`);
       }
+      
       const data = await response.json();
       
       if (!Array.isArray(data)) {
